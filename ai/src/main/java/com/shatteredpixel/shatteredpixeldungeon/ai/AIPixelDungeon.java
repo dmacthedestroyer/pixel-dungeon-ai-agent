@@ -1,8 +1,6 @@
 package com.shatteredpixel.shatteredpixeldungeon.ai;
 
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.IntMap;
@@ -13,19 +11,15 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroAction;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
-import com.shatteredpixel.shatteredpixeldungeon.levels.features.HighGrass;
 import com.shatteredpixel.shatteredpixeldungeon.levels.traps.Trap;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Plant;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
-import com.watabou.utils.PathFinder;
 import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.Random;
 
-import java.awt.*;
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene.uiCamera;
@@ -40,7 +34,8 @@ import com.badlogic.gdx.graphics.Color;
 public class AIPixelDungeon extends ShatteredPixelDungeon {
 
     ShapeRenderer shape;
-    TextureRegion region;
+    int levelWidth;
+    int levelSize;
 
     public AIPixelDungeon(PlatformSupport platform) {
         super(platform);
@@ -99,19 +94,26 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         }
 
         super.update();
-//        if (Dungeon.hero != null && Dungeon.hero.isAlive() && Dungeon.hero.ready && scene.active && scene.alive && scene.getClass().equals(GameScene.class) && Dungeon.hero.curAction == null && Dungeon.level != null) {
-//            HeroAction action = act();
+
+        String[] levelContext = null;
+        if (Dungeon.level != null) {
+            levelWidth = Dungeon.level.width();
+            levelSize = Dungeon.level.map.length;
+            levelContext = createLevelContext();
+            drawRectangles(levelContext);
+        }
+
+        if (Dungeon.hero != null && Dungeon.hero.isAlive() && Dungeon.hero.ready && scene.active && scene.alive && scene.getClass().equals(GameScene.class) && Dungeon.hero.curAction == null && Dungeon.level != null) {
+            act(levelContext != null ? levelContext : new String[0]);
 //            if (action != null) {
 //                Dungeon.hero.curAction = action;
 //                // stole this from CellSelector.moveFromActions function
 //                // I don't understand yet how calling next() progresses the game logic, but it seems to do the trick ¯\_(ツ)_/¯
 //                Dungeon.hero.next();
 //            }
-//        }
-        if (Dungeon.level != null) {
-            String[] levelContext = createLevelContext();
-            drawRectangles(levelContext);
+            Dungeon.hero.next();
         }
+
     }
 
     /**
@@ -119,19 +121,25 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
      * perform that action. Otherwise does nothing. I don't know how robust this is, so give it a try and report any
      * errors found
      */
-    protected HeroAction act() {
-        ArrayList<HeroAction> actions = listActions(Dungeon.hero.pos);
-        return actions.get(Random.Int(actions.size()));
+    protected void act(String[] levelContext) {
+        ArrayList<Integer> validCells = listActions(Dungeon.hero.pos, levelContext);
+        Dungeon.hero.handle(validCells.get(Random.Int(validCells.size())));
      }
 
-    public ArrayList<HeroAction> listActions(int heroPos) {
-        ArrayList<HeroAction> actions = new ArrayList<>();
-        for (int delta : PathFinder.NEIGHBOURS8){
-            int cell = heroPos + delta;
-            actions.add(new HeroAction.Move(cell));
+    public ArrayList<Integer> listActions(int heroPos, String[] levelContext) {
+        ArrayList<Integer> validCells = new ArrayList<>();
+        for (int i = 0; i < levelContext.length; i++) {
+            String cell = levelContext[i];
+            if (cell != null) {
+                if (!Pattern.compile("trap").matcher(cell).find()
+                    && !Objects.equals(cell, "pit")
+                    && !Objects.equals(cell, "wall")) {
+                    validCells.add(i);
+                }
+            }
         }
 
-        return actions;
+        return validCells;
     }
 
     // Overrides input listening to simulate a mouse click. Taken from InputHandler class
@@ -167,6 +175,7 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         for (int i = 0; i < length; i++) {
             // Handle Terrain objects not in an explicit list in Level, taken from Level class
             String isDoor = "";
+            boolean isWall = false;
             switch(Dungeon.level.map[i]) {
                 case Terrain.HIGH_GRASS:
                 case Terrain.FURROWED_GRASS:
@@ -180,6 +189,10 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
                 case Terrain.CRYSTAL_DOOR:
                     isDoor = "door.crystal";
                     break;
+
+                case Terrain.WALL:
+                    isWall = true;
+                    break;
             }
 
             if (Dungeon.level.visited[i]) { levelContext[i] = "visited"; }
@@ -189,7 +202,8 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
             if (Dungeon.level.visited[i] && Dungeon.level.pit[i]) { levelContext[i] = "pit"; }
             if (Dungeon.level.visited[i] && plants[i] != null) { levelContext[i] = plants[i]; }
             if (Dungeon.level.visited[i] && traps[i] != null) { levelContext[i] = traps[i]; }
-            if (Dungeon.level.visited[i] && !isDoor.isEmpty()) {levelContext[i] = isDoor; }
+            if (Dungeon.level.visited[i] && !isDoor.isEmpty()) { levelContext[i] = isDoor; }
+            if (Dungeon.level.visited[i] && isWall) { levelContext[i] = "wall"; }
             if (Dungeon.level.heroFOV[i] && mobs[i] != null) { levelContext[i] = mobs[i]; }
         }
 
@@ -217,9 +231,11 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
                 draw(i, Color.ORANGE);
             } else if (rectangles[i] != null && Pattern.compile("door").matcher(rectangles[i]).find()) {
                 draw(i, Color.PURPLE);
-            }else if (rectangles[i] != null && Pattern.compile("mob.ENEMY").matcher(rectangles[i]).find()) {
+            } else if (Objects.equals(rectangles[i], "wall")) {
+                draw(i, Color.BLACK);
+            } else if (rectangles[i] != null && Pattern.compile("mob.ENEMY").matcher(rectangles[i]).find()) {
                 draw(i, Color.RED);
-            } else if (rectangles[i] != null && Pattern.compile("hero").matcher(rectangles[i]).find()) {
+            } else if (Objects.equals(rectangles[i], "hero")) {
                 draw(i, Color.WHITE);
             }
         }
@@ -236,8 +252,8 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
 
     public float[] getCoords(int index) {
         return new float[] {
-                (float) (index % Dungeon.level.width()) / Dungeon.level.map.length * main.screenWidth() * 3,
-                (float) (index / Dungeon.level.width()) / Dungeon.level.map.length * main.screenHeight() * 3
+                (float) (index % levelWidth) / levelSize * main.screenWidth() * 3,
+                (float) (index / levelWidth) / levelSize * main.screenHeight() * 3
         };
     }
 }
