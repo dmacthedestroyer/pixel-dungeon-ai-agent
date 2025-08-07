@@ -8,10 +8,14 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroAction;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.HeroSelectScene;
+import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.Random;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 
 import static com.watabou.noosa.Camera.main;
@@ -25,9 +29,21 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         super(platform);
     }
 
+    private java.util.Random actionGenerator = new java.util.Random();
+    private Bundle previousState;
+    private Integer previousAction;
+
+    private BufferedWriter buffy;
+
     @Override
     public void create() {
         super.create();
+        int randNum = actionGenerator.nextInt();
+        try {
+            buffy = new BufferedWriter(new FileWriter("C:\\Users\\canne\\school_stuff\\5S2025\\pixel-dungeon-ai-agent\\test_data\\" + randNum + ".jsonl"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         startGame();
     }
 
@@ -77,13 +93,51 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
 
         super.update();
         if (Dungeon.hero != null && Dungeon.hero.isAlive() && Dungeon.hero.ready && scene.active && scene.alive && scene.getClass().equals(GameScene.class) && Dungeon.hero.curAction == null && Dungeon.level != null) {
-            HeroAction action = act();
-            if (action != null) {
-                Dungeon.hero.curAction = action;
-                // stole this from CellSelector.moveFromActions function
-                // I don't understand yet how calling next() progresses the game logic, but it seems to do the trick ¯\_(ツ)_/¯
-                Dungeon.hero.next();
+
+            System.out.println("Attempt to print bundle:");
+//            System.out.println(Dungeon.bundleAll().toString());
+
+            //save bundle as jsonl file
+            //each line should be {state, action, next_state}
+            Bundle nextState = Dungeon.bundleAll();
+
+            if (previousState != null && previousAction != null) {
+
+                Bundle bundleOfBundles = new Bundle();
+                bundleOfBundles.put("state", previousState);
+                bundleOfBundles.put("action", previousAction);
+                bundleOfBundles.put("next_state", nextState);
+
+                System.out.println(bundleOfBundles.toString());
+                //save this to file
+                try {
+                    //maybe flushing everytime isn't the best idea...
+                    buffy.write(bundleOfBundles.toString());
+                    buffy.newLine();
+                    buffy.flush();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
+
+
+            int action = actionGenerator.nextInt(8);
+            if (Dungeon.hero.handle(Dungeon.hero.pos + PathFinder.NEIGHBOURS8[action])) {
+                Dungeon.hero.next();
+                previousAction = action;
+                previousState = nextState;
+            }
+            else {
+                System.out.println("hello darkness my old friend...");
+            }
+
+//            HeroAction action = act();
+//            if (action != null) {
+//                Dungeon.hero.curAction = action;
+//                // stole this from CellSelector.moveFromActions function
+//                // I don't understand yet how calling next() progresses the game logic, but it seems to do the trick ¯\_(ツ)_/¯
+//                Dungeon.hero.next();
+//            }
         }
     }
 
@@ -115,4 +169,5 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         inputHandler.touchDown(x, y, 0, button);
         inputHandler.touchUp(x, y, 0, button);
     }
+
 }
