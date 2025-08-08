@@ -1,5 +1,6 @@
 package com.shatteredpixel.shatteredpixeldungeon.ai;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
@@ -30,16 +31,13 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
     private Integer previousAction;
 
     private RecordGameState recorder;
+    private NumpadInputHandler numInputHandler;
 
     @Override
     public void create() {
         super.create();
-        int randNum = actionGenerator.nextInt();
-        try {
-            buffy = new BufferedWriter(new FileWriter("C:\\Users\\canne\\school_stuff\\5S2025\\pixel-dungeon-ai-agent\\test_data\\" + randNum + ".jsonl"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        numInputHandler = new NumpadInputHandler();
+        Gdx.input.setInputProcessor(numInputHandler);
         recorder = new RecordGameState();
         recorder.initiateWrite();
         startGame();
@@ -92,19 +90,22 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         super.update();
         if (Dungeon.hero != null && Dungeon.hero.isAlive() && Dungeon.hero.ready && scene.active && scene.alive && scene.getClass().equals(GameScene.class) && Dungeon.hero.curAction == null && Dungeon.level != null) {
 
-            System.out.println("Attempt to print bundle:");
+//            System.out.println("Attempt to print bundle:");
 //            System.out.println(Dungeon.bundleAll().toString());
 
             //save bundle as jsonl file
             //each line should be {state, action, next_state}
             Bundle nextState = Dungeon.bundleAll();
 
+            int action = numInputHandler.getPressedKey();
+            if (action == -1) {
+                return;
+            }
+
             if (previousState != null && previousAction != null) {
                 recorder.saveGameData(recorder.bundleGameData(previousState, previousAction, nextState));
             }
 
-
-            int action = actionGenerator.nextInt(8);
             if (Dungeon.hero.handle(Dungeon.hero.pos + PathFinder.NEIGHBOURS8[action])) {
                 Dungeon.hero.next();
                 previousAction = action;
