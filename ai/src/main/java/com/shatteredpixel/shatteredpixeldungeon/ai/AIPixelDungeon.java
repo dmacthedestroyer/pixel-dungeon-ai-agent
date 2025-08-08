@@ -13,9 +13,6 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.Random;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 
 import static com.watabou.noosa.Camera.main;
@@ -29,11 +26,10 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         super(platform);
     }
 
-    private java.util.Random actionGenerator = new java.util.Random();
     private Bundle previousState;
     private Integer previousAction;
 
-    private BufferedWriter buffy;
+    private RecordGameState recorder;
 
     @Override
     public void create() {
@@ -44,6 +40,8 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        recorder = new RecordGameState();
+        recorder.initiateWrite();
         startGame();
     }
 
@@ -102,22 +100,7 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
             Bundle nextState = Dungeon.bundleAll();
 
             if (previousState != null && previousAction != null) {
-
-                Bundle bundleOfBundles = new Bundle();
-                bundleOfBundles.put("state", previousState);
-                bundleOfBundles.put("action", previousAction);
-                bundleOfBundles.put("next_state", nextState);
-
-                System.out.println(bundleOfBundles.toString());
-                //save this to file
-                try {
-                    //maybe flushing everytime isn't the best idea...
-                    buffy.write(bundleOfBundles.toString());
-                    buffy.newLine();
-                    buffy.flush();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                recorder.saveGameData(recorder.bundleGameData(previousState, previousAction, nextState));
             }
 
 
