@@ -40,7 +40,9 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
         super.create();
         int randNum = actionGenerator.nextInt();
         try {
-            buffy = new BufferedWriter(new FileWriter("C:\\Users\\canne\\school_stuff\\5S2025\\pixel-dungeon-ai-agent\\test_data\\" + randNum + ".jsonl"));
+            String curDir = System.getProperty("user.dir");
+            System.out.println("Current directory: " + curDir);
+            buffy = new BufferedWriter(new FileWriter(curDir + "/test_data/" + randNum + ".jsonl"));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
