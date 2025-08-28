@@ -60,6 +60,8 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
 
     // Once hero dies, simulate a left mouse click at the location where the "restart game" button would be
     public void restartGame() {
+        previousAction = null;
+        previousState = null;
         mouseClick(
                 (int) main.screenWidth() / 2,
                 (int) (main.screenHeight() / 1.7),
@@ -106,7 +108,14 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
                 recorder.saveGameData(recorder.bundleGameData(previousState, previousAction, nextState));
             }
 
-            if (Dungeon.hero.handle(Dungeon.hero.pos + PathFinder.NEIGHBOURS8[action])) {
+            numInputHandler.clearPressedKey();
+
+            if (action < 8 && Dungeon.hero.handle(Dungeon.hero.pos + PathFinder.NEIGHBOURS8[action])) {
+                Dungeon.hero.next();
+                previousAction = action;
+                previousState = nextState;
+            } else if (action == 8) {
+                Dungeon.hero.rest(false);
                 Dungeon.hero.next();
                 previousAction = action;
                 previousState = nextState;

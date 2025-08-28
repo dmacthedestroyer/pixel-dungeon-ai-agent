@@ -5,7 +5,7 @@ import com.badlogic.gdx.Input;
 import com.watabou.input.InputHandler;
 
 public class NumpadInputHandler extends InputHandler {
-    private int pressedKey = Input.Keys.NUMPAD_5;
+    private int pressedKey;
 
     public NumpadInputHandler() {
         super(Gdx.input);  // or the proper constructor
@@ -22,11 +22,15 @@ public class NumpadInputHandler extends InputHandler {
 
     @Override
     public boolean keyUp(int keycode) {
-        if (isNumpadKey(keycode) && keycode == pressedKey) {
-            pressedKey = Input.Keys.NUMPAD_5;
-            return true;
-        }
+//        if (isNumpadKey(keycode) && keycode == pressedKey) {
+//            pressedKey = -1;
+//            return true;
+//        }
         return false;
+    }
+
+    public void clearPressedKey() {
+        pressedKey = -1;
     }
 
     private int mapNumpadKeyToActionIndex(int keycode) {
@@ -39,6 +43,7 @@ public class NumpadInputHandler extends InputHandler {
             case Input.Keys.NUMPAD_1: return 5; // down-left
             case Input.Keys.NUMPAD_2: return 6; // down
             case Input.Keys.NUMPAD_3: return 7; // down-right
+            case Input.Keys.NUMPAD_5: return 8; // wait
             default: return -1; // invalid or no mapping
         }
     }
