@@ -67,7 +67,7 @@ transitions : list[Transition] = [Transition(
     torch.tensor([action], dtype=torch.int), 
     torch.tensor([s or 0 for s in next_state], dtype=torch.float), 
     torch.tensor([reward], dtype=torch.float)
-    ) for state, action, next_state, reward in itertools.islice(gen_transitions(path), 1000)]
+    ) for state, action, next_state, reward in gen_transitions(path)]
 
 # TODO make some replacement for env
 # Get the number of state observations
@@ -102,19 +102,9 @@ def select_action(state):
 
 
 def optimize_model():
-    # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation). This converts batch-array of Transitions
-    # to Transition of batch-arrays.
-    batch = Transition(*zip(*transitions))
-
-    # Compute a mask of non-final states and concatenate the batch elements
-    # (a final state would've been the one after which simulation ended)
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
-                                          batch.next_state)), device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state
-                                                if s is not None])
     state_batch = torch.stack([t.state for t in transitions])
     action_batch = torch.stack([t.action for t in transitions])
+    next_state_batch= torch.stack([t.next_state for t in transitions])
     reward_batch = torch.stack([t.reward for t in transitions])
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
@@ -130,7 +120,7 @@ def optimize_model():
     # state value or 0 in case the state was final.
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     with torch.no_grad():
-        next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
+        next_state_values = target_net(next_state_batch).max(1).values
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
