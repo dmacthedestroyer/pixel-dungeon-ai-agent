@@ -1,13 +1,14 @@
+import math
+import os
+import pickle
+import random
 from collections import namedtuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import math
-import random
-from analysis_shattered import gen_transitions
-import itertools
-
+from analysis_shattered import chunked, gen_transitions
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() else
@@ -62,12 +63,22 @@ n_actions = 9
 path = "./data"
 
 print("building transitions...")
-transitions : list[Transition] = [Transition(
+if not os.path.exists("./transitions.pickle"):
+    print("pickling transitions")
+    transitions = [Transition(
     torch.tensor([s or 0 for s in state], dtype=torch.float), 
     torch.tensor([action], dtype=torch.int), 
     torch.tensor([s or 0 for s in next_state], dtype=torch.float), 
     torch.tensor([reward], dtype=torch.float)
     ) for state, action, next_state, reward in gen_transitions(path)]
+    with open("./transitions.pickle", 'wb') as file:
+        pickle.dump(transitions, file)
+else:
+    print("eating transition pickles")
+    with open("./transitions.pickle", 'rb') as file:
+        transitions = pickle.load(file)
+
+print(len(transitions), " transitions")
 
 # TODO make some replacement for env
 # Get the number of state observations
@@ -101,11 +112,11 @@ def select_action(state):
         return torch.tensor([[random.randint(1, 9)]], device=device, dtype=torch.long)
 
 
-def optimize_model():
-    state_batch = torch.stack([t.state for t in transitions])
-    action_batch = torch.stack([t.action for t in transitions])
-    next_state_batch= torch.stack([t.next_state for t in transitions])
-    reward_batch = torch.stack([t.reward for t in transitions])
+def optimize_model(transition_batch: list[Transition]):
+    state_batch = torch.stack([t.state for t in transition_batch])
+    action_batch = torch.stack([t.action for t in transition_batch])
+    next_state_batch= torch.stack([t.next_state for t in transition_batch])
+    reward_batch = torch.cat([t.reward for t in transition_batch])
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
@@ -118,9 +129,8 @@ def optimize_model():
     # on the "older" target_net; selecting their best reward with max(1).values
     # This is merged based on the mask, such that we'll have either the expected
     # state value or 0 in case the state was final.
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
     with torch.no_grad():
-        next_state_values = target_net(next_state_batch).max(1).values
+        next_state_values, _ = target_net(next_state_batch).max(1)
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
@@ -135,14 +145,29 @@ def optimize_model():
     torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
+def soft_update_model(transition_batch: list[Transition]):
+    """
+    smoothing transition of target_net towards policy_net somehow ¯\_(ツ)_/¯
+    """
+    for _ in range(len(transition_batch)):
+        target_net_state_dict = target_net.state_dict()
+        policy_net_state_dict = policy_net.state_dict()
+        for key in policy_net_state_dict:
+            target_net_state_dict[key] = policy_net_state_dict[key]*TAU + target_net_state_dict[key]*(1-TAU)
+        target_net.load_state_dict(target_net_state_dict)
 
 def save_model(model_file: str):
     torch.save(policy_net.state_dict(), model_file)
 
 
 def train_model_mass_data():
-    print("optimizing model...")
-    optimize_model()
+    print("training model...")
+    for i, chunk in enumerate(chunked(transitions, BATCH_SIZE)):
+        print(f"chunk {i}:")
+        soft_update_model(chunk)
+        print("\tsoft upate done")
+        optimize_model(chunk)
+        print("\toptimize done")
     print("saving model...")
     save_model("first_model.pt")
 

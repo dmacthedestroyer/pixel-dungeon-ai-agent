@@ -59,3 +59,8 @@ def gen_transitions(data_path):
     for line in gen_lines(data_path):
         yield (list(state_to_junk(line["state"])), line["action"], list(state_to_junk(line["next_state"])), progression_score(line["next_state"]))
         
+def chunked(my_list, chunk_size):
+    chunks = []
+    for i in range(0, len(my_list), chunk_size):
+        chunks.append(my_list[i:i + chunk_size])
+    return chunks
