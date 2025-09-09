@@ -6,9 +6,9 @@ from collections import namedtuple
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from analysis_shattered import chunked, gen_transitions
+from analysis_shattered import chunked, gen_transitions, state_to_junk
+from model import DQN
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() else
@@ -22,22 +22,6 @@ print("device", device)
 
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward'))
-
-
-class DQN(nn.Module):
-
-    def __init__(self, n_observations, n_actions):
-        super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
-
-    # Called with either one element to determine next action, or a batch
-    # during optimization. Returns tensor([[left0exp,right0exp]...]).
-    def forward(self, x):
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        return self.layer3(x)
 
 
 # BATCH_SIZE is the number of transitions sampled from the replay buffer
@@ -67,7 +51,7 @@ if not os.path.exists("./transitions.pickle"):
     print("pickling transitions")
     transitions = [Transition(
     torch.tensor([s or 0 for s in state], dtype=torch.float), 
-    torch.tensor([action], dtype=torch.int), 
+    torch.tensor([action], dtype=torch.int64), 
     torch.tensor([s or 0 for s in next_state], dtype=torch.float), 
     torch.tensor([reward], dtype=torch.float)
     ) for state, action, next_state, reward in gen_transitions(path)]
@@ -86,8 +70,8 @@ print(len(transitions), " transitions")
 n_observations = len(transitions[0].state) # total number of observations that we have
 print("n_observations", n_observations)
 
-policy_net = DQN(n_observations, n_actions).to(device)
-target_net = DQN(n_observations, n_actions).to(device)
+policy_net = DQN().to(device)
+target_net = DQN().to(device)
 target_net.load_state_dict(policy_net.state_dict())
 
 optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)

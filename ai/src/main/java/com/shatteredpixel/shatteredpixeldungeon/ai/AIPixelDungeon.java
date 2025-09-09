@@ -14,7 +14,12 @@ import com.watabou.utils.PathFinder;
 import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.Random;
 
+import java.net.*;
+import java.math.BigDecimal;
+import java.io.*;
+import org.json.JSONArray;
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.watabou.noosa.Camera.main;
 
@@ -99,7 +104,59 @@ public class AIPixelDungeon extends ShatteredPixelDungeon {
             //each line should be {state, action, next_state}
             Bundle nextState = Dungeon.bundleAll();
 
-            int action = numInputHandler.getPressedKey();
+            int action;
+
+            try {
+                HttpURLConnection connection = (HttpURLConnection)(new URL("http://localhost:5000/action-values")).openConnection();
+                connection.setRequestMethod("POST");
+                connection.setRequestProperty("Content-Type", "application/json");
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setDoOutput(true);
+
+                String body = nextState.toString();
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = body.getBytes("utf-8");
+                    os.write(input, 0, input.length);
+                }
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    try (BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"))) {
+                        StringBuilder response = new StringBuilder();
+                        String responseLine = null;
+                        while ((responseLine = br.readLine()) != null) {
+                            response.append(responseLine.trim());
+                        }
+                        List<Object> foo = new JSONArray(response.toString()).toList();
+
+                        int biggest_index = 0;
+                        for(int i=0; i< foo.size(); i++) {
+                            BigDecimal lhs = (BigDecimal)foo.get(i);
+                            BigDecimal rhs = (BigDecimal)foo.get(biggest_index);
+                            int comparedTo = lhs.compareTo(rhs);
+                            if (comparedTo > 0) {
+                                System.out.println("\t" + biggest_index + "(" + rhs+ ") < " + i + "(" + lhs + "): " + foo);
+                                biggest_index = i;
+                            }
+                            else {
+                                System.out.println("\t" + biggest_index + "(" + rhs+ ") >= " + i + "(" + lhs + "): " + foo);
+                            }
+                        }
+
+                        action = biggest_index;
+
+                        System.out.println(action + ":" + foo);
+                    }
+                } else {
+                    throw new RuntimeException("POST request failed. Response Code: " + responseCode);
+                }
+
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+
+//            int action = numInputHandler.getPressedKey();
             if (action == -1) {
                 return;
             }
